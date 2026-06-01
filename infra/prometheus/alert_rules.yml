@@ -1,0 +1,76 @@
+groups:
+  - name: blockshield_pipeline
+    interval: 30s
+    rules:
+
+      - alert: HighAnomalyRate
+        expr: |
+          sum(rate(blockshield_tx_flagged_anomaly_total[5m])) * 60
+          /
+          sum(rate(blockshield_tx_processed_total[5m])) * 60
+          > 0.10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High anomaly flag rate (>10%)"
+          description: "{{ $value | humanizePercentage }} of transactions flagged in last 5m."
+
+      - alert: CriticalAnomalySpike
+        expr: |
+          sum(rate(blockshield_tx_flagged_anomaly_total{model="isolation_forest"}[2m])) * 60 > 50
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Anomaly spike — >50 flags/min"
+          description: "Possible flash attack or data poisoning. Investigate immediately."
+
+      - alert: RPCLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, chain)(rate(blockshield_rpc_latency_seconds_bucket[5m]))
+          ) > 3.0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RPC p95 latency high for {{ $labels.chain }}"
+          description: "p95 = {{ $value | humanizeDuration }}"
+
+      - alert: BrokerQueueDepthHigh
+        expr: blockshield_broker_queue_depth > 5000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Broker queue depth high: {{ $labels.topic }}"
+          description: "{{ $value }} messages queued. Consumer may be lagging."
+
+      - alert: ModelVersionStale
+        expr: |
+          (time() - blockshield_isolation_forest_version * 0) > 86400
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "Isolation Forest model has not been retrained in 24h"
+          description: "Accumulate analyst feedback to trigger retraining."
+
+      - alert: RateLimitStorm
+        expr: sum(rate(blockshield_rate_limit_hits_total[5m])) * 60 > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate-limit hit rate (>100/min)"
+          description: "Possible brute-force or runaway client."
+
+      - alert: AppDown
+        expr: up{job="blockshield_app"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "BlockShield app is DOWN"
+          description: "Prometheus cannot scrape the /metrics endpoint."

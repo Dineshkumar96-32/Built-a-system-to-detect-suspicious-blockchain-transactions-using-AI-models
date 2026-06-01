@@ -1,0 +1,90 @@
+# ─── Python ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.log
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Secrets / Environment ───────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+
+# ─── Database ────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+blockshield.db
+
+# ─── ML Models (large binary files — use DVC or S3) ─────────
+models/*.pkl
+models/*.pt
+models/*.h5
+models/*.joblib
+!models/.gitkeep
+
+# ─── OFAC / data files ────────────────────────────────────────
+data/sdn_advanced.csv
+data/sdn_advanced.xml
+
+# ─── Node / Frontend ─────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.cache/
+*.tsbuildinfo
+.next/
+.nuxt/
+.turbo/
+
+# ─── Docker ──────────────────────────────────────────────────
+.docker/
+
+# ─── IDE / OS ─────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Alembic ─────────────────────────────────────────────────
+# Keep migrations but ignore generated files
+migrations/__pycache__/
+migrations/versions/__pycache__/
+
+# ─── Prometheus / Grafana local data ─────────────────────────
+prometheus_data/
+grafana_data/
+postgres_data/
+redis_data/
+kafka_data/
+
+# ─── Test / CI artefacts ──────────────────────────────────────
+bandit-report.json
+.benchmarks/

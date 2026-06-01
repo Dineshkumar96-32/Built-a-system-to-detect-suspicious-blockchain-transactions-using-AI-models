@@ -1,0 +1,251 @@
+name: BlockShield CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION:   "20"
+  REGISTRY:       ghcr.io
+  IMAGE_NAME:     ${{ github.repository }}/blockshield-app
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Backend — lint, type-check, test
+  # ─────────────────────────────────────────────────────────────
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER:     ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB:       blockshield_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: blockshield/blockchain-fraud-detection/backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: blockshield/blockchain-fraud-detection/backend/requirements*.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check . --output-format=github
+
+      - name: Type check (mypy)
+        run: mypy app broker ml auth observability --ignore-missing-imports
+
+      - name: Run Alembic migrations (CI DB)
+        env:
+          DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/blockshield_test
+        run: alembic upgrade head
+
+      - name: Run tests
+        env:
+          DATABASE_URL:    postgresql+asyncpg://ci:ci@localhost:5432/blockshield_test
+          REDIS_URL:       redis://localhost:6379/0
+          JWT_SECRET_KEY:  ci-secret-key-32-characters-xxxx
+          BROKER_BACKEND:  memory
+          LOG_JSON:        "false"
+        run: |
+          pytest tests/ \
+            --cov=app \
+            --cov=broker \
+            --cov=ml \
+            --cov=auth \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v \
+            --timeout=60
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: blockshield/blockchain-fraud-detection/backend/coverage.xml
+          flags: backend
+        continue-on-error: true
+
+  # ─────────────────────────────────────────────────────────────
+  # Frontend — lint, type-check, build
+  # ─────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: blockshield/blockchain-fraud-detection/frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: blockshield/blockchain-fraud-detection/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: http://localhost:8000/api/v1
+
+      - name: Run frontend tests
+        run: npm test -- --watchAll=false --passWithNoTests
+
+  # ─────────────────────────────────────────────────────────────
+  # Security scanning
+  # ─────────────────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [backend]
+
+    defaults:
+      run:
+        working-directory: blockshield/blockchain-fraud-detection/backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install security tools
+        run: pip install bandit safety pip-audit
+
+      - name: Bandit (SAST)
+        run: bandit -r app broker ml auth -ll -f json -o bandit-report.json || true
+
+      - name: Safety (dependency CVEs)
+        run: safety check -r requirements.txt --json || true
+
+      - name: pip-audit
+        run: pip-audit -r requirements.txt --format=json || true
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: blockshield/blockchain-fraud-detection/backend/bandit-report.json
+        if: always()
+
+  # ─────────────────────────────────────────────────────────────
+  # Docker build + push (main branch only)
+  # ─────────────────────────────────────────────────────────────
+  docker:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, security]
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: blockshield/blockchain-fraud-detection
+          file:    blockshield/blockchain-fraud-detection/Dockerfile
+          push:    true
+          tags:    ${{ steps.meta.outputs.tags }}
+          labels:  ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            GIT_SHA=${{ github.sha }}
+
+  # ─────────────────────────────────────────────────────────────
+  # Deploy to staging (main branch only, after Docker push)
+  # ─────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key:      ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /opt/blockshield
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker compose exec -T app alembic upgrade head
+            echo "Deployment complete at $(date)"

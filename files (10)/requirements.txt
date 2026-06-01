@@ -1,0 +1,36 @@
+# ── Web framework ─────────────────────────────────────────────
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+starlette==0.41.3
+python-multipart==0.0.20
+
+# ── Database ──────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+aiosqlite==0.20.0
+alembic==1.14.0
+
+# ── Auth ──────────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
+
+# ── Broker ────────────────────────────────────────────────────
+redis[asyncio]==5.2.1
+aiokafka==0.11.0
+
+# ── HTTP client ───────────────────────────────────────────────
+httpx==0.28.1
+
+# ── ML ────────────────────────────────────────────────────────
+scikit-learn==1.5.2
+numpy==2.2.0
+networkx==3.4.2
+
+# ── Observability ─────────────────────────────────────────────
+prometheus-client==0.21.1
+structlog==24.4.0
+
+# ── Config ────────────────────────────────────────────────────
+pydantic==2.10.4
+pydantic-settings==2.7.0

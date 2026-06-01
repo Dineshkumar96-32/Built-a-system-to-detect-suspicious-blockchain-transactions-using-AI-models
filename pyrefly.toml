@@ -1,0 +1,72 @@
+# pyrefly.toml
+# ─────────────────────────────────────────────────────────────────────────────
+# Pyrefly configuration for BlockShield.
+# Docs: https://pyrefly.org/en/docs/configuration/
+# Error kinds: https://pyrefly.org/en/docs/error-kinds/
+# ─────────────────────────────────────────────────────────────────────────────
+
+[tool.pyrefly]
+
+# ── Python interpreter ────────────────────────────────────────────────────────
+# Point Pyrefly at the virtual-env interpreter so it can find installed packages
+# (sqlalchemy, fastapi, etc.) and stop emitting missing-import errors.
+python_interpreter = "venv/Scripts/python.exe"
+
+# ── Source search paths ───────────────────────────────────────────────────────
+# Added to sys.path so Pyrefly resolves internal package imports.
+search_path = [
+  ".",           # project root
+]
+
+# ── Python version ────────────────────────────────────────────────────────────
+python_version = "3.11"
+
+# ── Which files to type-check ─────────────────────────────────────────────────
+project_includes = [
+  "app",
+  "broker",
+  "ml",
+  "auth",
+  "observability",
+  "tests",
+  "migrations",
+]
+
+project_excludes = [
+  "**/__pycache__/**",
+  "**/venv/**",
+  "**/node_modules/**",
+  "migrations/versions/**",
+]
+
+# ── Error severity overrides ──────────────────────────────────────────────────
+[tool.pyrefly.errors]
+missing-attribute       = "error"
+bad-argument-type       = "error"
+bad-return              = "error"
+unknown-name            = "error"
+unbound-name            = "error"
+
+# ── missing-import: warn not error ───────────────────────────
+missing-import          = "warn"
+
+# ── Warnings: surface in IDE, don't block CI ─────────────────
+implicit-any            = "warn"
+implicit-any-parameter  = "warn"
+implicit-any-attribute  = "warn"
+unannotated-return      = "warn"
+untyped-import          = "warn"
+deprecated              = "warn"
+redundant-condition     = "warn"
+non-exhaustive-match    = "warn"
+unreachable             = "warn"
+
+# ── Info / ignored ────────────────────────────────────────────
+reveal-type                  = "info"
+unused-ignore                = "ignore"
+implicitly-defined-attribute = "ignore"
+implicit-abstract-class      = "ignore"
+missing-override-decorator   = "ignore"
+not-required-key-access      = "ignore"
+open-unpacking               = "ignore"
+variance-mismatch            = "warn"

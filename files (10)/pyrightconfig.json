@@ -1,0 +1,16 @@
+{
+  "include": ["app", "broker", "ml", "auth", "observability", "tests"],
+  "exclude": ["**/__pycache__", ".venv", "node_modules", "migrations/versions"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "warning",
+  "reportMissingModuleSource": "warning",
+  "reportMissingTypeStubs": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownArgumentType": "none",
+  "useLibraryCodeForTypes": true,
+  "extraPaths": ["."]
+}
